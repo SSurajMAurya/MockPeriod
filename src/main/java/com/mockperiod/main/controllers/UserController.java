@@ -115,4 +115,66 @@ public class UserController {
 	public ResponseEntity<String> test() {
 		return ResponseEntity.ok("User API is working! " + java.time.LocalDateTime.now());
 	}
+	
+	@GetMapping("/getAllStudent/{instituteEmail}")
+	public ResponseEntity<List<UserDto>> getAllStudentByInstitute(@PathVariable String instituteEmail){
+		try {
+			
+		List<UserDto> students	= userService.getAllStudentByInstitute(instituteEmail);
+		
+		return ResponseEntity.ok(students);
+			
+		} catch (Exception e) {
+			throw new RuntimeException("Error retrieving the student" + e.getMessage());
+		}
+	}
+	
+	
+	@GetMapping("/getCount/{id}")
+	public ResponseEntity<Long> getCount(@PathVariable Long id){
+		try {
+			
+			
+			
+		Long count = userService.countByIdandRole(id);
+		
+		return ResponseEntity.ok(count);
+			
+		} catch (Exception e) {
+			throw new RuntimeException("Error retrieving the Count" + e.getMessage());
+		}
+	}
+	
+	@GetMapping("/getCountByRole/{role}")
+	public ResponseEntity<Long> getCount(@PathVariable String role){
+		try {
+			
+			Role role2 = Role.valueOf(role);
+			
+		Long count = userService.countByRole(role2);
+		
+		return ResponseEntity.ok(count);
+			
+		} catch (Exception e) {
+			throw new RuntimeException("Error retrieving the Count" + e.getMessage());
+		}
+	}
+	
+	
+	@PostMapping("/send-reset-password-otp")
+	public ResponseEntity<String> sendResetPasswordOtp(@RequestParam String email) {
+	    userService.sendresetPasswordMail(email);
+	    return ResponseEntity.ok("Password reset OTP sent successfully");
+	}
+
+	@PostMapping("/verify-otp-and-reset-password")
+	public ResponseEntity<String> verifyOtpAndResetPassword(
+	        @RequestParam String email,
+	        @RequestParam Integer otp,
+	        @RequestParam String newPassword) {
+	    
+	    userService.verifyresetOtp(email, otp, newPassword);
+	    return ResponseEntity.ok("Password reset successfully");
+	}
+	
 }

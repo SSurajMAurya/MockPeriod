@@ -1,22 +1,31 @@
 package com.mockperiod.main.serviceImpl;
 
+import com.mockperiod.main.dto.ResendEmailResponse;
 import com.mockperiod.main.dto.UserDto;
 import com.mockperiod.main.entities.Plan;
+import com.mockperiod.main.entities.ResetPassword;
 import com.mockperiod.main.entities.Role;
 import com.mockperiod.main.entities.Users;
+import com.mockperiod.main.exceptions.CustomException;
 import com.mockperiod.main.exceptions.ResourceNotFoundException;
 import com.mockperiod.main.exceptions.UserManagementException;
+import com.mockperiod.main.repository.ResetPasswordRepository;
 import com.mockperiod.main.repository.UserRepository;
 import com.mockperiod.main.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 //import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -25,7 +34,9 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
 	private final UserRepository userRepository;
-//    private final PasswordEncoder passwordEncoder;
+	private final PasswordEncoder passwordEncoder;
+	private final ResendEmailService emailService;
+	private final ResetPasswordRepository passwordRepository;
 
 	@Override
 	@Transactional
@@ -35,10 +46,43 @@ public class UserServiceImpl implements UserService {
 
 			// Check if user already exists
 			validateUserUniqueness(userDto.getEmail(), userDto.getPhoneNo());
+			
+			if(userDto.getRole().equals(Role.STUDENT.toString())) {
+				
+			   Users intititute = userRepository.findById(userDto.getInstituteId())
+					   .orElseThrow(() -> new CustomException("Institute Not found ", HttpStatus.NOT_FOUND));
+			   
+			   Plan plan = intititute.getPlans();
+			   
+//			   Long count  = 90L;
+			   Long count = userRepository.countStudentsByInstituteId(userDto.getInstituteId());
+			   
+			   if(plan.equals(Plan.BASIC) && count >= 40) {
+				   throw new CustomException("Need to upgrade in order to add more student", HttpStatus.CONFLICT);
+			   }
+			   if(plan.equals(Plan.STANDARD) && count >= 80) {
+				   throw new CustomException("Maximum limit reached for student", HttpStatus.CONFLICT);
+			   }
+				
+			}
 
 			// Create user entity
 			Role targetRole = validateAndParseRole(userDto.getRole());
 			Users user = buildUserEntity(userDto, targetRole);
+
+			LocalDateTime date = null;
+
+			if (user.getPlans() != null) {
+				if (userDto.getPlanExpireDate() == null) {
+
+					date = LocalDateTime.now().plusMonths(1);
+
+				} else {
+					date = LocalDateTime.parse(userDto.getPlanExpireDate());
+				}
+
+				user.setPlanExpireDate(date);
+			}
 
 			Users savedUser = userRepository.save(user);
 			log.info("User created successfully with ID: {}", savedUser.getId());
@@ -139,15 +183,19 @@ public class UserServiceImpl implements UserService {
 		if (userDto.getName() != null && !userDto.getName().trim().isEmpty()) {
 			user.setName(userDto.getName().trim());
 		}
+		
+		if(userDto.getAvatarUrl() != null) {
+			user.setAvatarUrl(userDto.getAvatarUrl());
+		}
 
 		// Only update email if provided and different from current
 		if (userDto.getEmail() != null && !userDto.getEmail().trim().isEmpty()) {
 			String newEmail = userDto.getEmail().trim();
 			if (!newEmail.equals(user.getEmail())) {
 				// Check if new email is already taken by another user
-                if (userRepository.existsByEmailAndIdNot(newEmail, user.getId())) {
-                    throw new UserManagementException("Email " + newEmail + " is already taken");
-                }
+				if (userRepository.existsByEmailAndIdNot(newEmail, user.getId())) {
+					throw new UserManagementException("Email " + newEmail + " is already taken");
+				}
 				user.setEmail(newEmail);
 				user.setEmailVerified(false); // Require re-verification if email changed
 			}
@@ -158,9 +206,9 @@ public class UserServiceImpl implements UserService {
 			String newPhone = userDto.getPhoneNo().trim();
 			if (!newPhone.equals(user.getPhoneNo())) {
 				// Check if new phone is already taken by another user
-                if (userRepository.existsByPhoneNoAndIdNot(newPhone, user.getId())) {
-                    throw new UserManagementException("Phone number " + newPhone + " is already taken");
-                }
+				if (userRepository.existsByPhoneNoAndIdNot(newPhone, user.getId())) {
+					throw new UserManagementException("Phone number " + newPhone + " is already taken");
+				}
 				user.setPhoneNo(newPhone);
 				user.setPhoneVerified(false); // Require re-verification if phone changed
 			}
@@ -194,12 +242,12 @@ public class UserServiceImpl implements UserService {
 			Plan newPlan = validateAndParsePlan(userDto.getPlans());
 			user.setPlans(newPlan);
 		}
-		
+
 		if (userDto.getPassword() != null && !userDto.getPassword().trim().isEmpty()) {
 //			if (user.getRole() != Role.ADMIN || user.getRole() != Role.SUPERADMIN) {
 //				throw new UserManagementException("Only ADMIN users can change the password");
 //			}
-			
+
 			user.setPassword(userDto.getPassword());
 		}
 
@@ -355,11 +403,40 @@ public class UserServiceImpl implements UserService {
 		}
 	}
 
+//	private Users buildUserEntity(UserDto userDto, Role role) {
+//		return Users.builder().name(userDto.getName()).email(userDto.getEmail()).phoneNo(userDto.getPhoneNo())
+//				.password(passwordEncoder.encode(userDto.getPassword()))
+//				.instituteName(userDto.getInstituteName())
+//				.instituteId(userDto.getIntituteId())
+//				.instituteEmail(userDto.getInstituteEmail())
+//				.isActive(true).role(role).plans(role == Role.ADMIN ? Plan.BASIC : null).isPhoneVerified(true)
+//				.isEmailVerified(true).build();
+//	}
+	
 	private Users buildUserEntity(UserDto userDto, Role role) {
-		return Users.builder().name(userDto.getName()).email(userDto.getEmail()).phoneNo(userDto.getPhoneNo())
-//                .password(passwordEncoder.encode(userDto.getPassword()))
-				.password(userDto.getPassword()).instituteName(userDto.getInstituteName()).isActive(true).role(role)
-				.plans(role == Role.ADMIN ? Plan.BASIC : null).isPhoneVerified(false).isEmailVerified(false).build();
+	    Users.UsersBuilder builder = Users.builder()
+	            .name(userDto.getName())
+	            .email(userDto.getEmail())
+	            .phoneNo(userDto.getPhoneNo())
+	            .password(passwordEncoder.encode(userDto.getPassword()))
+	            .instituteName(userDto.getInstituteName())
+	            .isActive(true)
+	            .role(role)
+	            .plans(role == Role.ADMIN ? Plan.BASIC : null)
+	            .isPhoneVerified(true)
+	            .isEmailVerified(true);
+
+	    // Conditionally set instituteEmail if present
+	    if (userDto.getInstituteEmail() != null) {
+	        builder.instituteEmail(userDto.getInstituteEmail());
+	    }
+
+	    // Conditionally set instituteId if present
+	    if (userDto.getInstituteId() != null) {
+	        builder.instituteId(userDto.getInstituteId());
+	    }
+
+	    return builder.build();
 	}
 
 	private Role validateAndParseRole(String roleStr) {
@@ -397,12 +474,140 @@ public class UserServiceImpl implements UserService {
 		}
 	}
 
+//	private UserDto mapToDto(Users user) {
+//		return UserDto.builder().id(user.getId()).name(user.getName()).email(user.getEmail()).phoneNo(user.getPhoneNo())
+//				.instituteName(user.getInstituteName()).isActive(user.isActive()).role(user.getRole().name())
+//				.plans(user.getPlans() != null ? user.getPlans().name() : null).isPhoneVerified(user.isPhoneVerified())
+//				.isEmailVerified(user.isEmailVerified()).password(user.getPassword())
+//				.planExpireDate(user.getPlanExpireDate().toString())
+//				.build();
+//	}
+	
 	private UserDto mapToDto(Users user) {
-		return UserDto.builder().id(user.getId()).name(user.getName()).email(user.getEmail()).phoneNo(user.getPhoneNo())
-				.instituteName(user.getInstituteName()).isActive(user.isActive()).role(user.getRole().name())
-				.plans(user.getPlans() != null ? user.getPlans().name() : null).isPhoneVerified(user.isPhoneVerified())
-				.isEmailVerified(user.isEmailVerified())
-				.password(user.getPassword())
-				.build();
+	    return UserDto.builder()
+	            .id(user.getId())
+	            .name(user.getName())
+	            .email(user.getEmail())
+	            .phoneNo(user.getPhoneNo())
+	            .instituteName(user.getInstituteName())
+	            .instituteEmail(user.getInstituteEmail() != null ? user.getInstituteEmail() : null)
+	            .instituteId(user.getInstituteId() != null ? user.getInstituteId() : null)
+	            .isActive(user.isActive())
+	            .role(user.getRole().name())
+	            .plans(user.getPlans() != null ? user.getPlans().name() : null)
+	            .isPhoneVerified(user.isPhoneVerified())
+	            .isEmailVerified(user.isEmailVerified())
+	            .password(user.getPassword())
+	            .planExpireDate(user.getPlanExpireDate() != null ? user.getPlanExpireDate().toString() : null)
+	            .build();
+	}
+
+	@Override
+	public List<UserDto> getAllStudentByInstitute(String instituteEmail) {
+		
+	Users institute	= userRepository.findByEmail(instituteEmail).
+		      orElseThrow(() -> new CustomException("Institute not found with email: "+instituteEmail, HttpStatus.NOT_FOUND));
+	
+	
+	List<Users> studentList = userRepository.findByInstituteEmail(instituteEmail);
+	
+	if(studentList == null || studentList.isEmpty()) {
+		throw new CustomException("No Student found for Institute: "+institute.getName(), HttpStatus.NOT_FOUND);
+	}
+	
+	return studentList.stream().map((student) -> mapToDto(student)).collect(Collectors.toList());
+	
+	
+	}
+
+	@Override
+	public Long countByIdandRole(Long id) {
+		
+		return userRepository.countStudentsByInstituteId(id); 
+	}
+
+	@Override
+	public Long countByRole(Role role) {
+		return userRepository.countByRole(role); 
+	}
+
+//	@Override
+//	public void sendresetPasswordMail(String to) {
+//		
+//		userRepository.findByEmail(to).orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
+//		
+//		Integer otp = (int) (Math.random() * 900000) + 100000;
+//		
+//		ResetPassword resetPassword = new ResetPassword();
+//		resetPassword.setEmail(to);
+//		resetPassword.setOtp(otp);
+//		resetPassword.setExpirtedAt(LocalDateTime.now().plusMinutes(5));
+//			
+//		String subject = "your password reset code is : "+ otp;
+//		
+//		emailService.sendResetEmail(to, otp).block();
+//		
+//		passwordRepository.save(resetPassword);
+//		
+//	}
+	
+	@Override
+	public void sendresetPasswordMail(String to) {
+	    
+	    userRepository.findByEmail(to).orElseThrow(() -> 
+	        new CustomException("User not found", HttpStatus.NOT_FOUND));
+	    
+	    Integer otp = (int) (Math.random() * 900000) + 100000;
+	    
+	    ResetPassword resetPassword = new ResetPassword();
+	    resetPassword.setEmail(to);
+	    resetPassword.setOtp(otp);
+	    resetPassword.setExpirtedAt(LocalDateTime.now().plusMinutes(5));
+	    
+	    try {
+	        // Send email and wait for response
+	        ResendEmailResponse response = emailService.sendResetEmailSync(to, otp);
+	        
+	        if (response != null && response.getId() != null) {
+	            // Save OTP to database
+	            passwordRepository.save(resetPassword);
+	            log.info("Reset password OTP sent to {}: {}", to, response.getId());
+	        } else {
+	            throw new CustomException("Failed to send email", HttpStatus.INTERNAL_SERVER_ERROR);
+	        }
+	        
+	    } catch (CustomException e) {
+	        throw e;
+	    } catch (Exception e) {
+	        log.error("Failed to send reset password email to {}: {}", to, e.getMessage(), e);
+	        throw new CustomException("Failed to send email. Please try again.", 
+	                                 HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	}
+
+	@Override
+	public void verifyresetOtp(String email , Integer otp ,String password) {
+		
+		 Users users =  userRepository.findByEmail(email).orElseThrow(() -> new CustomException("User not found", HttpStatus.NOT_FOUND));
+		
+		ResetPassword resetPassword =  passwordRepository.findByEmail(email).orElseThrow(() -> new CustomException("Otp not found for User :"+email, HttpStatus.NOT_FOUND));
+		
+		if(resetPassword.getOtp().equals(otp) && !LocalDateTime.now().isAfter(resetPassword.getExpirtedAt())){
+			
+			users.setPassword(passwordEncoder.encode(password));
+			
+			userRepository.save(users);
+			resetPassword.setOtp(null);
+			resetPassword.setExpirtedAt(null);
+			resetPassword.setEmail(null);
+			
+			passwordRepository.save(resetPassword);
+			
+		}
+		else {
+			throw new CustomException("Inavlid otp or expired otp", HttpStatus.ALREADY_REPORTED);
+		}
+		
+		
 	}
 }

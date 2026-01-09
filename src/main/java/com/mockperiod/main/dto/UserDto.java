@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -30,8 +29,16 @@ public class UserDto {
 
 	private String plans;
 
+	private String instituteEmail;
+
+	private Long instituteId;
+
 	private boolean isPhoneVerified;
 
 	private boolean isEmailVerified;
+	
+	private String planExpireDate;
+	
+	private String avatarUrl;
 
 }

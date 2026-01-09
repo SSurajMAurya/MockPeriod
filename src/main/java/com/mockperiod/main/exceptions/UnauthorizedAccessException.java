@@ -1,7 +1,12 @@
 package com.mockperiod.main.exceptions;
 
 public class UnauthorizedAccessException extends RuntimeException {
-    public UnauthorizedAccessException(String message) {
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+	public UnauthorizedAccessException(String message) {
         super(message);
     }
 }

@@ -1,6 +1,7 @@
 package com.mockperiod.main.repository;
 
 
+import com.mockperiod.main.entities.PaymentStatus;
 import com.mockperiod.main.entities.Plan;
 import com.mockperiod.main.entities.Role;
 import com.mockperiod.main.entities.Users;
@@ -17,6 +18,8 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     
     Optional<Users> findByEmail(String email);
     
+    List<Users> findAllByEmailIn(List<String> emails);
+    
     Optional<Users> findByPhoneNo(String phoneNo);
     
     boolean existsByEmail(String email);
@@ -28,7 +31,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     List<Users> findByRoleAndInstituteName(Role role, String instituteName);
     
     @Query("SELECT u FROM Users u WHERE u.role = :role AND u.isActive = true")
-    List<Users> findActiveUsersByRole(@Param("role") Role role);
+    List<Users> findActiveUsersByRole(@Param("role") Role role); 
     
     @Query("SELECT COUNT(u) FROM Users u WHERE u.role = :role AND u.instituteName = :instituteName")
     long countByRoleAndInstituteName(@Param("role") Role role, @Param("instituteName") String instituteName);
@@ -43,4 +46,17 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     // Check if phone exists for other users (excluding current user)
     @Query("SELECT COUNT(u) > 0 FROM Users u WHERE u.phoneNo = :phoneNo AND u.id != :id")
     boolean existsByPhoneNoAndIdNot(@Param("phoneNo") String phoneNo, @Param("id") Long id);
+    
+    Optional<Users> findByInstituteName(String instituteName);
+    
+    Optional<Users> findByRazorpayOrderId(String razorpayOrderId);
+    Optional<Users> findByEmailAndPaymentStatus(String email, PaymentStatus paymentStatus);
+    
+    List<Users> findByInstituteEmail(String instituteEmail);
+    
+    @Query("SELECT COUNT(u) FROM Users u WHERE u.instituteId = :instituteId AND u.role = 'STUDENT'")
+    long countStudentsByInstituteId(@Param("instituteId") Long instituteId);
+    
+    long countByRole(Role role);
+    
 }

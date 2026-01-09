@@ -1,21 +1,31 @@
 package com.mockperiod.main.service;
 
+import com.mockperiod.main.dto.ExamDto;
+import com.mockperiod.main.dto.ExamForFEDto;
+
 import java.util.List;
 
-import com.mockperiod.main.dto.CreateExamRequest;
-import com.mockperiod.main.dto.ExamResponseDTO;
-import com.mockperiod.main.dto.UpdateExamRequest;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface ExamService {
+	ExamDto createExam(ExamDto examDto);
 
-	ExamResponseDTO createExam(CreateExamRequest request);
+	ExamDto getExamById(Long id);
 
-	List<ExamResponseDTO> getAllExams();
+	List<ExamDto> getAllExams();
 
-	ExamResponseDTO updateExam(Long examId, UpdateExamRequest request);
+	ExamDto updateExam(Long id, ExamDto examDto);
 
-	void deleteExam(Long examId);
+	void deleteExam(Long id);
 
-	List<ExamResponseDTO> searchExams(String keyword);
+	ExamDto addSubjectsToExam(Long examId, List<Long> subjectIds);
+
+	ExamDto removeSubjectsFromExam(Long examId, List<Long> subjectIds);
+
+	void deleteExamImage(Long examId);
+	
+	ExamDto updateExamImage(Long examId, MultipartFile imageFile);
+	
+	List<ExamForFEDto> getAllExamFE();
 
 }

@@ -34,4 +34,15 @@ public interface UserService {
 	UserDto getCurrentUser();
 
 	UserDto createFirstSuperAdmin(UserDto userDto);
+	
+	List<UserDto> getAllStudentByInstitute(String instituteEmail);
+	
+	Long countByIdandRole(Long id);
+	
+	Long countByRole(Role role);
+	
+	void sendresetPasswordMail(String to);
+	
+	void verifyresetOtp(String email , Integer otp ,String password);
+	
 }
